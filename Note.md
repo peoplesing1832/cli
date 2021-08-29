@@ -10,7 +10,7 @@
 
 ### execa
 
-用来创建子进程
+基于 child_process 的封装库。关于 node 的 child_process 模块的内容请[参考]()
 
 ### semver
 
