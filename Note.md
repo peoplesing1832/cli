@@ -57,8 +57,11 @@ node semver 解析器。可以用来解析，判断版本。
 }
 ```
 
-设置 package.json 中的 bin 字段。当库被全局安装的时候, bind/vue.js 会被链接到全局 bin 所在的位置。
+设置 package.json 中的 bin 字段。当库被全局安装('-g')的时候, bind/vue.js 会被链接到全局 bin 所在的位置。我们就可以使用 `vue` 命令。
 
+## npm-link
+
+npm link 命令可以让我们方便调试 npm 包。假设我们有项目 A。在进行入的 A 的根目录后。使用 npm link 会被链接到全局。
 ## packages/@vue/cli/bin/vue.js
 
 从 `vue create` 命令的入口文件开始
