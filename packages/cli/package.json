@@ -22,5 +22,13 @@
   },
   "bugs": {
     "url": "https://github.com/peoplesing1832/cli/issues"
+  },
+  "dependencies": {
+    "cli-language": "^0.0.1",
+    "cli-utils": "^0.0.1",
+    "commander": "^8.1.0",
+    "fs-extra": "^10.0.0",
+    "inquirer": "^8.1.2",
+    "validate-npm-package-name": "^3.0.0"
   }
 }
