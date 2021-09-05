@@ -290,14 +290,13 @@ class Creator extends EventEmitter {
     // 上下文的路径
     this.context = process.env.VUE_CLI_CONTEXT = context
     // 获取预设的配置列表
-    // presetPrompt 是预设的配置
+    // presetPrompt 是预设的配置 (预设的cli的配置)
     // featurePrompt.choices 保存了项目创建所需要的配置
     const { presetPrompt, featurePrompt } = this.resolveIntroPrompts()
 
     this.presetPrompt = presetPrompt
     this.featurePrompt = featurePrompt
-    // 获取存放项目文件的配置
-    // 以及包管理器的配置
+    // 获取存放项目文件的配置，以及包管理器的配置
     this.outroPrompts = this.resolveOutroPrompts()
     this.injectedPrompts = []
     this.promptCompleteCbs = []
@@ -306,12 +305,305 @@ class Creator extends EventEmitter {
 
     this.run = this.run.bind(this)
 
+    // 这段代码请看下面
     const promptAPI = new PromptModuleAPI(this)
+    // 遍历promptModules，promptModules 是 lib/promptModules 中一系列文件，导出的数组
     promptModules.forEach(m => m(promptAPI))
   }
 }
 ```
 
+```
+module.exports = cli => {
+  cli.injectFeature({
+    name: 'Unit Testing',
+    value: 'unit',
+    short: 'Unit',
+    description: 'Add a Unit Testing solution like Jest or Mocha',
+    link: 'https://cli.vuejs.org/config/#unit-testing',
+    plugins: ['unit-jest', 'unit-mocha']
+  })
+
+  cli.injectPrompt({
+    name: 'unit',
+    when: answers => answers.features.includes('unit'),
+    type: 'list',
+    message: 'Pick a unit testing solution:',
+    choices: [
+      {
+        name: 'Jest',
+        value: 'jest',
+        short: 'Jest'
+      },
+      {
+        name: 'Mocha + Chai',
+        value: 'mocha',
+        short: 'Mocha'
+      }
+    ]
+  })
+
+  cli.onPromptComplete((answers, options) => {
+    if (answers.unit === 'mocha') {
+      options.plugins['@vue/cli-plugin-unit-mocha'] = {}
+    } else if (answers.unit === 'jest') {
+      options.plugins['@vue/cli-plugin-unit-jest'] = {}
+    }
+  })
+}
+
+```
+
+```
+module.exports = class PromptModuleAPI {
+  constructor (creator) {
+    this.creator = creator
+  }
+
+  injectFeature (feature) {
+    this.creator.featurePrompt.choices.push(feature)
+  }
+
+  injectPrompt (prompt) {
+    this.creator.injectedPrompts.push(prompt)
+  }
+
+  injectOptionForPrompt (name, option) {
+    this.creator.injectedPrompts.find(f => {
+      return f.name === name
+    }).choices.push(option)
+  }
+
+  onPromptComplete (cb) {
+    this.creator.promptCompleteCbs.push(cb)
+  }
+}
+
+const promptAPI = new PromptModuleAPI(this)
+promptModules.forEach(m => m(promptAPI))
+```
+
+cli.injectFeature 是注入 featurePrompt, 既下图
+
+![featurePrompt.png](https://i.loli.net/2021/09/05/IyGHpt3gSLzfoab.png)
+
+cli.injectPrompt 根据选择的 featurePrompt 然后注入对应的 prompt, 既下图的内容
+
+![injectPrompt.png](https://i.loli.net/2021/09/05/YsozQml2iguZMLe.png)
+
+加下来看 Creator 实例的 create 方法
+
+```
+async create (cliOptions = {}, preset = null) {
+  const isTestOrDebug = process.env.VUE_CLI_TEST || process.env.VUE_CLI_DEBUG
+  const { run, name, context, afterInvokeCbs, afterAnyInvokeCbs } = this
+
+  if (!preset) {
+    if (cliOptions.preset) {
+      // vue create foo --preset bar
+      preset = await this.resolvePreset(cliOptions.preset, cliOptions.clone)
+    } else if (cliOptions.default) {
+      // vue create foo --default
+      preset = defaults.presets.default
+    } else if (cliOptions.inlinePreset) {
+      // vue create foo --inlinePreset {...}
+      try {
+        preset = JSON.parse(cliOptions.inlinePreset)
+      } catch (e) {
+        error(`CLI inline preset is not valid JSON: ${cliOptions.inlinePreset}`)
+        exit(1)
+      }
+    } else {
+      preset = await this.promptAndResolvePreset()
+    }
+  }
+
+  // clone before mutating
+  preset = cloneDeep(preset)
+  // inject core service
+  preset.plugins['@vue/cli-service'] = Object.assign({
+    projectName: name
+  }, preset)
+
+  if (cliOptions.bare) {
+    preset.plugins['@vue/cli-service'].bare = true
+  }
+
+  // legacy support for router
+  if (preset.router) {
+    preset.plugins['@vue/cli-plugin-router'] = {}
+
+    if (preset.routerHistoryMode) {
+      preset.plugins['@vue/cli-plugin-router'].historyMode = true
+    }
+  }
+
+  // legacy support for vuex
+  if (preset.vuex) {
+    preset.plugins['@vue/cli-plugin-vuex'] = {}
+  }
+
+  const packageManager = (
+    cliOptions.packageManager ||
+    loadOptions().packageManager ||
+    (hasYarn() ? 'yarn' : null) ||
+    (hasPnpm3OrLater() ? 'pnpm' : 'npm')
+  )
+
+  await clearConsole()
+  const pm = new PackageManager({ context, forcePackageManager: packageManager })
+
+  log(`✨  Creating project in ${chalk.yellow(context)}.`)
+  this.emit('creation', { event: 'creating' })
+
+  // get latest CLI plugin version
+  const { latestMinor } = await getVersions()
+
+  // generate package.json with plugin dependencies
+  const pkg = {
+    name,
+    version: '0.1.0',
+    private: true,
+    devDependencies: {},
+    ...resolvePkg(context)
+  }
+  const deps = Object.keys(preset.plugins)
+  deps.forEach(dep => {
+    if (preset.plugins[dep]._isPreset) {
+      return
+    }
+
+    let { version } = preset.plugins[dep]
+
+    if (!version) {
+      if (isOfficialPlugin(dep) || dep === '@vue/cli-service' || dep === '@vue/babel-preset-env') {
+        version = isTestOrDebug ? `latest` : `~${latestMinor}`
+      } else {
+        version = 'latest'
+      }
+    }
+
+    pkg.devDependencies[dep] = version
+  })
+
+  // write package.json
+  await writeFileTree(context, {
+    'package.json': JSON.stringify(pkg, null, 2)
+  })
+
+  // generate a .npmrc file for pnpm, to persist the `shamefully-flatten` flag
+  if (packageManager === 'pnpm') {
+    const pnpmConfig = hasPnpmVersionOrLater('4.0.0')
+      ? 'shamefully-hoist=true\n'
+      : 'shamefully-flatten=true\n'
+
+    await writeFileTree(context, {
+      '.npmrc': pnpmConfig
+    })
+  }
+
+  // intilaize git repository before installing deps
+  // so that vue-cli-service can setup git hooks.
+  const shouldInitGit = this.shouldInitGit(cliOptions)
+  if (shouldInitGit) {
+    log(`🗃  Initializing git repository...`)
+    this.emit('creation', { event: 'git-init' })
+    await run('git init')
+  }
+
+  // install plugins
+  log(`⚙\u{fe0f}  Installing CLI plugins. This might take a while...`)
+  log()
+  this.emit('creation', { event: 'plugins-install' })
+
+  if (isTestOrDebug && !process.env.VUE_CLI_TEST_DO_INSTALL_PLUGIN) {
+    // in development, avoid installation process
+    await require('./util/setupDevProject')(context)
+  } else {
+    await pm.install()
+  }
+
+  // run generator
+  log(`🚀  Invoking generators...`)
+  this.emit('creation', { event: 'invoking-generators' })
+  const plugins = await this.resolvePlugins(preset.plugins, pkg)
+  const generator = new Generator(context, {
+    pkg,
+    plugins,
+    afterInvokeCbs,
+    afterAnyInvokeCbs
+  })
+  await generator.generate({
+    extractConfigFiles: preset.useConfigFiles
+  })
+
+  // install additional deps (injected by generators)
+  log(`📦  Installing additional dependencies...`)
+  this.emit('creation', { event: 'deps-install' })
+  log()
+  if (!isTestOrDebug || process.env.VUE_CLI_TEST_DO_INSTALL_PLUGIN) {
+    await pm.install()
+  }
+
+  // run complete cbs if any (injected by generators)
+  log(`⚓  Running completion hooks...`)
+  this.emit('creation', { event: 'completion-hooks' })
+  for (const cb of afterInvokeCbs) {
+    await cb()
+  }
+  for (const cb of afterAnyInvokeCbs) {
+    await cb()
+  }
+
+  if (!generator.files['README.md']) {
+    // generate README.md
+    log()
+    log('📄  Generating README.md...')
+    await writeFileTree(context, {
+      'README.md': generateReadme(generator.pkg, packageManager)
+    })
+  }
+
+  // commit initial state
+  let gitCommitFailed = false
+  if (shouldInitGit) {
+    await run('git add -A')
+    if (isTestOrDebug) {
+      await run('git', ['config', 'user.name', 'test'])
+      await run('git', ['config', 'user.email', 'test@test.com'])
+      await run('git', ['config', 'commit.gpgSign', 'false'])
+    }
+    const msg = typeof cliOptions.git === 'string' ? cliOptions.git : 'init'
+    try {
+      await run('git', ['commit', '-m', msg, '--no-verify'])
+    } catch (e) {
+      gitCommitFailed = true
+    }
+  }
+
+  // log instructions
+  log()
+  log(`🎉  Successfully created project ${chalk.yellow(name)}.`)
+  if (!cliOptions.skipGetStarted) {
+    log(
+      `👉  Get started with the following commands:\n\n` +
+      (this.context === process.cwd() ? `` : chalk.cyan(` ${chalk.gray('$')} cd ${name}\n`)) +
+      chalk.cyan(` ${chalk.gray('$')} ${packageManager === 'yarn' ? 'yarn serve' : packageManager === 'pnpm' ? 'pnpm run serve' : 'npm run serve'}`)
+    )
+  }
+  log()
+  this.emit('creation', { event: 'done' })
+
+  if (gitCommitFailed) {
+    warn(
+      `Skipped git commit due to missing username and email in git config, or failed to sign commit.\n` +
+      `You will need to perform the initial commit yourself.\n`
+    )
+  }
+
+  generator.printExitLogs()
+}
+```
 
 ## 参考
 
