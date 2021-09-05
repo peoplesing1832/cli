@@ -1,0 +1,25 @@
+{
+  "name": "cli-utils",
+  "version": "0.0.1",
+  "description": "shared utilities for react-cli packages",
+  "keywords": [
+    "react",
+    "cli",
+    "cli-shared-utils"
+  ],
+  "author": "peoplesing1832 <peoplesing1832@gmail.com>",
+  "homepage": "https://github.com/peoplesing1832/cli",
+  "license": "MIT",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "__tests__"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peoplesing1832/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/peoplesing1832/cli/issues"
+  }
+}
