@@ -291,11 +291,13 @@ class Creator extends EventEmitter {
     this.context = process.env.VUE_CLI_CONTEXT = context
     // 获取预设的配置列表
     // presetPrompt 是预设的配置
-    // featurePrompt 项目所需要的配置
+    // featurePrompt.choices 保存了项目创建所需要的配置
     const { presetPrompt, featurePrompt } = this.resolveIntroPrompts()
 
     this.presetPrompt = presetPrompt
     this.featurePrompt = featurePrompt
+    // 获取存放项目文件的配置
+    // 以及包管理器的配置
     this.outroPrompts = this.resolveOutroPrompts()
     this.injectedPrompts = []
     this.promptCompleteCbs = []
@@ -306,55 +308,6 @@ class Creator extends EventEmitter {
 
     const promptAPI = new PromptModuleAPI(this)
     promptModules.forEach(m => m(promptAPI))
-  }
-
-  // ....
-
-  getPresets () {
-    const savedOptions = loadOptions()
-    return Object.assign({}, savedOptions.presets, defaults.presets)
-  }
-
-  resolveIntroPrompts () {
-    const presets = this.getPresets()
-    // 获取预设的选贤
-    const presetChoices = Object.entries(presets).map(([name, preset]) => {
-      let displayName = name
-      if (name === 'default') {
-        displayName = 'Default'
-      } else if (name === '__default_vue_3__') {
-        displayName = 'Default (Vue 3)'
-      }
-
-      return {
-        name: `${displayName} (${formatFeatures(preset)})`,
-        value: name
-      }
-    })
-    const presetPrompt = {
-      name: 'preset',
-      type: 'list',
-      message: `Please pick a preset:`,
-      choices: [
-        ...presetChoices,
-        {
-          name: 'Manually select features',
-          value: '__manual__'
-        }
-      ]
-    }
-    const featurePrompt = {
-      name: 'features',
-      when: isManualMode,
-      type: 'checkbox',
-      message: 'Check the features needed for your project:',
-      choices: [],
-      pageSize: 10
-    }
-    return {
-      presetPrompt,
-      featurePrompt
-    }
   }
 }
 ```
