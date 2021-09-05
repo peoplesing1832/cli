@@ -145,6 +145,7 @@ program
   // action 是命令的处理函数
   // name 是第一个参数，就是项目的名称
   // options 是命令其他参数，是 obj 的形式
+  // 例如你使用 -f 参数，options 参数就是 { force: true }
   .action((name, options) => {
     // 如果输入了多个参数，第一个参数是项目的名称，对用户进行提示
     if (minimist(process.argv.slice(3))._.length > 1) {
@@ -153,9 +154,115 @@ program
     if (process.argv.includes('-g') || process.argv.includes('--git')) {
       options.forceGit = true
     }
+    // 接下来进入 create.js 文件查看
     require('../lib/create')(name, options)
   })
 ```
+
+## packages/@vue/cli/lib/create.js
+
+```
+const fs = require('fs-extra')
+const path = require('path')
+const inquirer = require('inquirer')
+const Creator = require('./Creator')
+const { clearConsole } = require('./util/clearConsole')
+const { getPromptModules } = require('./util/createTools')
+const {
+  chalk, // chalk 美化命令行的库
+  error,
+  stopSpinner,
+  exit // process.exit 的封装
+} = require('@vue/cli-shared-utils')
+// validate-npm-package-name 用于验证项目的名称是否是有效的 npm 包名
+const validateProjectName = require('validate-npm-package-name')
+
+async function create (projectName, options) {
+  // 是否使用代理
+  if (options.proxy) {
+    process.env.HTTP_PROXY = options.proxy
+  }
+
+  // node进程的当前工作目录
+  const cwd = options.cwd || process.cwd()
+  // 如果 vue create 的 第一个参数是一个点, 那么 name 就等于当前工作目录的名称
+  const inCurrent = projectName === '.'
+  const name = inCurrent ? path.relative('../', cwd) : projectName
+  // 目标文件夹的目录
+  const targetDir = path.resolve(cwd, projectName || '.')
+
+  // 判断 name 是否有效
+  const result = validateProjectName(name)
+  // 如果 name 是无效的
+  // 会进行警告的打印，并使用 exit 方法，退出当前的进程
+  if (!result.validForNewPackages) {
+    console.error(chalk.red(`Invalid project name: "${name}"`))
+    result.errors && result.errors.forEach(err => {
+      console.error(chalk.red.dim('Error: ' + err))
+    })
+    result.warnings && result.warnings.forEach(warn => {
+      console.error(chalk.red.dim('Warning: ' + warn))
+    })
+    exit(1)
+  }
+
+  // fs.existsSync 检查文件系统来测试给定的路径是否存在
+  // 
+  if (fs.existsSync(targetDir) && !options.merge) {
+    if (options.force) {
+      await fs.remove(targetDir)
+    } else {
+      await clearConsole()
+      if (inCurrent) {
+        const { ok } = await inquirer.prompt([
+          {
+            name: 'ok',
+            type: 'confirm',
+            message: `Generate project in current directory?`
+          }
+        ])
+        if (!ok) {
+          return
+        }
+      } else {
+        const { action } = await inquirer.prompt([
+          {
+            name: 'action',
+            type: 'list',
+            message: `Target directory ${chalk.cyan(targetDir)} already exists. Pick an action:`,
+            choices: [
+              { name: 'Overwrite', value: 'overwrite' },
+              { name: 'Merge', value: 'merge' },
+              { name: 'Cancel', value: false }
+            ]
+          }
+        ])
+        if (!action) {
+          return
+        } else if (action === 'overwrite') {
+          console.log(`\nRemoving ${chalk.cyan(targetDir)}...`)
+          await fs.remove(targetDir)
+        }
+      }
+    }
+  }
+
+  const creator = new Creator(name, targetDir, getPromptModules())
+  await creator.create(options)
+}
+
+module.exports = (...args) => {
+  return create(...args).catch(err => {
+    stopSpinner(false) // do not persist
+    error(err)
+    if (!process.env.VUE_CLI_TEST) {
+      process.exit(1)
+    }
+  })
+}
+```
+
+
 ## 参考
 
 - [vue-cli 3.0 源码分析](https://juejin.cn/post/6844903775304433677)
