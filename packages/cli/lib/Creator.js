@@ -20,6 +20,13 @@ class Creator extends EventEmitter {
     this.promptModules = [
       routerPrompt,
     ]
+    const promptAPI = new PromptModuleAPI(this)
+    this.promptModules.forEach((module) => {
+      module(promptAPI)
+    })
+  }
+
+  async create (options = {}) {
   }
 
   initFeaturePrompt () {

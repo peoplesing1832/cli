@@ -39,7 +39,15 @@ const language = {
   'react-cli-use': {
     cn: '使用',
     en: 'Use',
-  }
+  },
+  'react-cli-router': {
+    cn: '用动态页面构造应用程序',
+    en: 'Structure the app with dynamic pages',
+  },
+  'react-cli-router-mode': {
+    cn: '选择路由的模式：',
+    en: `Pick router mode:`,
+  },
 }
 
 exports.t = language
