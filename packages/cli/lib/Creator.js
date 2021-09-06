@@ -6,6 +6,7 @@ const {
   hasYarn,
   clearConsole,
 } = require('cli-utils')
+const routerPrompt = require('./prompt/router')
 
 class Creator extends EventEmitter {
   constructor (name, context) {
@@ -14,6 +15,11 @@ class Creator extends EventEmitter {
     this.context = rocess.env.CONTEXT = context
     this.featurePrompt = this.initFeaturePrompt()
     this.packagePrompt = this.initPackagePrompt()
+    this.injectedPrompts = []
+    this.promptCompleteCbs = []
+    this.promptModules = [
+      routerPrompt,
+    ]
   }
 
   initFeaturePrompt () {
