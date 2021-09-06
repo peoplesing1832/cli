@@ -399,14 +399,18 @@ async create (cliOptions = {}, preset = null) {
   const { run, name, context, afterInvokeCbs, afterAnyInvokeCbs } = this
 
   if (!preset) {
+    // 这些都可以忽略不看
+    // 判断是否使用已保存的配置，忽略提示符并使用已保存的或远程的预设选项
     if (cliOptions.preset) {
       // vue create foo --preset bar
       preset = await this.resolvePreset(cliOptions.preset, cliOptions.clone)
+      // 忽略提示符并使用默认预设选项
     } else if (cliOptions.default) {
       // vue create foo --default
       preset = defaults.presets.default
     } else if (cliOptions.inlinePreset) {
       // vue create foo --inlinePreset {...}
+      // 忽略提示符并使用内联的 JSON 字符串预设选项
       try {
         preset = JSON.parse(cliOptions.inlinePreset)
       } catch (e) {
@@ -414,6 +418,7 @@ async create (cliOptions = {}, preset = null) {
         exit(1)
       }
     } else {
+      // 获取后续加载插件的配置？？？？
       preset = await this.promptAndResolvePreset()
     }
   }
