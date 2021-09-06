@@ -7,7 +7,7 @@
     "cli"
   ],
   "bin": {
-    "vuet": "bin/react.js"
+    "react": "bin/react.js"
   },
   "author": "peoplesing1832 <peoplesing1832@gmail.com>",
   "homepage": "https://github.com/peoplesing1832/cli",
