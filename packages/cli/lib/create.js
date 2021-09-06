@@ -6,6 +6,7 @@ const t = require('cli-language')
 const {
   clearConsole,
 } = require('cli-utils')
+const Creator = require('./Creator')
 
 async function create (name, options) {
   const cwd = options.cwd || process.cwd()
@@ -67,6 +68,8 @@ async function create (name, options) {
       }
     }
   }
+
+  const creator = new Creator(name, dir)
 }
 
 module.exports = create

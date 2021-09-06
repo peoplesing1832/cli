@@ -28,6 +28,18 @@ const language = {
     cn: '取消',
     en: 'cancel',
   },
+  'react-cli-check-features-project': {
+    cn: '检查项目所需的功能:',
+    en: 'Check the features needed for your project:',
+  },
+  'react-cli-package-manager': {
+    cn: '选择安装依赖项时要使用的包管理器：',
+    en: 'Pick the package manager to use when installing dependencies:',
+  },
+  'react-cli-use': {
+    cn: '使用',
+    en: 'Use',
+  }
 }
 
 exports.t = language
